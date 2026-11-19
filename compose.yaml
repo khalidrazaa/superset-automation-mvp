@@ -1,0 +1,44 @@
+name: superset-automation-mvp
+
+x-superset: &superset
+  image: superset-automation-mvp:local
+  environment:
+    SUPERSET_CONFIG_PATH: /app/config/superset_config.py
+    SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?Set SUPERSET_SECRET_KEY in .env}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+  volumes:
+    - ./superset_config.py:/app/config/superset_config.py:ro
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: superset
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "superset", "-d", "superset"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  superset-init:
+    <<: *superset
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-ec", "superset db upgrade && superset init"]
+
+  superset-web:
+    <<: *superset
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    command: ["gunicorn", "--bind", "0.0.0.0:8088", "--worker-class", "gthread", "--threads", "4", "superset.app:create_app()"]
+    ports:
+      - "127.0.0.1:8088:8088"
+
+volumes:
+  postgres-data:
