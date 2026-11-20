@@ -1,0 +1,34 @@
+﻿name: superset-automation-mvp
+
+x-superset: &superset
+  image: superset-automation-mvp:vps
+  build: .
+  environment:
+    SUPERSET_CONFIG_PATH: /app/config/superset_config.py
+    SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?Set SUPERSET_SECRET_KEY in .env}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    SUPERSET_DB_HOST: postgres-db
+    SUPERSET_DB_USER: superset_meta
+    SUPERSET_DB_NAME: superset_meta
+  volumes:
+    - ./superset_config.py:/app/config/superset_config.py:ro
+  networks:
+    - backend
+
+services:
+  superset-init:
+    <<: *superset
+    command: ["sh", "-ec", "superset db upgrade && superset init"]
+
+  superset-web:
+    <<: *superset
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    command: ["gunicorn", "--bind", "0.0.0.0:8088", "--worker-class", "gthread", "--threads", "4", "superset.app:create_app()"]
+    restart: unless-stopped
+
+networks:
+  backend:
+    external: true
+    name: apps_backend_net
