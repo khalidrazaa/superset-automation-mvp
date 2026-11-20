@@ -1,0 +1,33 @@
+﻿name: Build Superset image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Build and test image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_SHA"
+          docker build --pull --tag "$image" .
+          docker run --rm --entrypoint /app/.venv/bin/python "$image" \
+            -c 'import psycopg2, sqlalchemy_bigquery'
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: Publish image to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE"
+          printf 'Published `%s`\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
