@@ -1,4 +1,4 @@
-﻿name: Build Superset image
+name: Build Superset image
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
 
       - name: Build and test image
         run: |
-          image="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_SHA"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:latest"
           docker build --pull --tag "$image" .
           docker run --rm --entrypoint /app/.venv/bin/python "$image" \
             -c 'import psycopg2, sqlalchemy_bigquery'
